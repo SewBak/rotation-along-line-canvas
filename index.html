@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Rotation along line</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+
+</head>
+
+<body style="background-color: black;" onkeydown="realKeyMan(event);"
+    onkeyup="if(event.keyCode == currKey){currKey = -69; clearInterval(keyInterval);}">
+    <canvas id="c" width="1280" height="720"
+        style="border:5px solid #00FF00; position:absolute;top:50%;left:50%; transform: translate(-50%,-50%);height:90%;aspect-ratio: 16/9;image-rendering: pixelated;"></canvas>
+    <script>
+        alert("WASD+QE to move. Arrow keys for rotating.")
+        alert("The '3D' text model thingy will be the one rotating around the axis, the other objects were left in because they're cool.")
+        linedirtext = prompt("Insert line vector (any 3 numbers, separated by commas), or leave default.", "-275, -400, 100");
+        linePointtext = prompt("Insert point on the line/axis (any 3 numbers, separated by commas), or leave default.", "0, 0, 0");
+        linedirarr = linedirtext.split(',');
+        linePointarr = linePointtext.split(',');
+        linePoint = [parseFloat(linePointarr[0]), parseFloat(linePointarr[1]), parseFloat(linePointarr[2])];
+        const angbounder = a => {
+            if (a >= Math.PI * 2) {
+                a -= Math.PI * 2;
+            }
+            else if (a < 0) {
+                a += Math.PI * 2;
+            }
+            return a;
+        }
+        const dot = (a, b) => a.map((x, i) => a[i] * b[i]).reduce((m, n) => m + n);
+        const dist = (a, b) => Math.sqrt(Math.pow(b[0] - a[0], 2) + Math.pow(b[1] - a[1], 2) + Math.pow(b[2] - a[2], 2));
+        const dist2D = (a, b) => Math.sqrt(Math.pow(b[0] - a[0], 2) + Math.pow(b[1] - a[1], 2));
+        const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+        const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        const vmul = (a, b) => [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
+        const vdiv = (a, b) => [a[0] / b[0], a[1] / b[1], a[2] / b[2]];
+        const rotadd = 0.05;
+        const normalize = v => {
+            od = dist([0, 0, 0], v);
+            return [v[0] / od, v[1] / od, v[2] / od];
+        }
+        const normalize2D = v => {
+            od = dist2D([0, 0], v);
+            return [v[0] / od, v[1] / od];
+        }
+        lineDir = normalize([parseFloat(linedirarr[0]), parseFloat(linedirarr[1]), parseFloat(linedirarr[2])]);
+        rotVect = [0, -1, 0];
+        //linePoint = [0, 0, 0];
+        var weirdTn;
+        var weirdRn;
+        var centerP;
+        //lineDir = normalize([275, 400, -100]);
+        var eq3 = { a: lineDir[0], b: lineDir[1], c: lineDir[2] };
+        weirdRn = normalize2D([eq3.a, eq3.b]);
+        the_ang = v2ToAng(weirdRn);
+        the_ang -= Math.PI / 2;
+        the_ang = angbounder(the_ang);
+        weirdRn = [Math.cos(the_ang), Math.sin(the_ang), 0];
+        weirdTempRn = normalize2D([eq3.a, eq3.b]);
+        the_ang = v2ToAng([dist2D([0, 0], [eq3.a, eq3.b]), eq3.c]);
+        the_ang += Math.PI / 2;
+        the_ang = angbounder(the_ang);
+        weirdTn = [Math.cos(the_ang) * weirdTempRn[0], Math.cos(the_ang) * weirdTempRn[1], Math.sin(the_ang)];
+        const rotPoint = [0, 0, 0];
+        const moveSpeed = 0.2;
+        fovpower = 0.7;
+        const c = document.getElementById("c").getContext("2d");
+        c.fillStyle = "#00FF00";
+        c.strokeStyle = "#00FF00";
+        c.lineWidth = 3;
+        const shapes = [[
+            [
+                [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]
+            ],
+            [
+                [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]
+            ],
+            [[0, 0, 0], [0, 0, 1]],
+            [[0, 1, 0], [0, 1, 1]],
+            [[1, 0, 0], [1, 0, 1]],
+            [[1, 1, 0], [1, 1, 1]]
+        ], [
+            [
+                [2, 0, 0], [3, 0, 0], [3, 1, 0]
+            ],
+            [[2, 0, 0], [2.66, 0.33, 1]],
+            [[3, 0, 0], [2.66, 0.33, 1]],
+            [[3, 1, 0], [2.66, 0.33, 1]],
+        ],
+        [
+            [[3, -5, 3], [1, -5, 3], [1, -5, -2], [3, -5, -2], [3, -5, -1], [2, -5, -1], [2, -5, 0], [3, -5, 0], [3, -5, 1], [2, -5, 1], [2, -5, 2], [3, -5, 2],],
+            [[0, -5, 3], [0, -5, -2], [-2.5, -5, -2], [-2.5, -5, -1], [-3, -5, -1], [-3, -5, 2], [-2.5, -5, 2], [-2.5, -5, 3]],
+            [[-0.95, -5, 2], [-1.8, -5, 2], [-1.8, -5, -1], [-0.95, -5, -1]],
+            [[3, -6, 3], [2, -6, 3], [1, -6, 3], [1, -6, -2], [2, -6, -2], [3, -6, -2], [3, -6, -1], [2, -6, -1], [2, -6, 0], [3, -6, 0], [3, -6, 1], [2, -6, 1], [2, -6, 2], [3, -6, 2], [3, -6, 3]],
+            [[0, -6, 3], [0, -6, -2], [-2.5, -6, -2], [-2.5, -6, -1], [-3, -6, -1], [-3, -6, 2], [-2.5, -6, 2], [-2.5, -6, 3]],
+            [[-0.95, -6, 2], [-1.8, -6, 2], [-1.8, -6, -1], [-0.95, -6, -1]],
+            [[3, -5, 3], [3, -6, 3]],
+            [[1, -5, 3], [1, -6, 3]],
+            [[1, -5, -2], [1, -6, -2]],
+            [[3, -5, -2], [3, -6, -2]],
+            [[3, -5, -1], [3, -6, -1]],
+            [[2, -5, -1], [2, -6, -1]],
+            [[2, -5, 0], [2, -6, 0]],
+            [[3, -5, 0], [3, -6, 0]],
+            [[3, -5, 0], [3, -6, 0]],
+            [[3, -5, 1], [3, -6, 1]],
+            [[2, -5, 1], [2, -6, 1]],
+            [[2, -5, 2], [2, -6, 2]],
+            [[3, -5, 2], [3, -6, 2]],
+            [[0, -5, 3], [0, -6, 3]],
+            [[0, -5, -2], [0, -6, -2]],
+            [[-2.5, -5, -2], [-2.5, -6, -2]],
+            [[-2.5, -5, -1], [-2.5, -6, -1]],
+            [[-3, -5, -1], [-3, -6, -1]],
+            [[-3, -5, 2], [-3, -6, 2]],
+            [[-2.5, -5, 2], [-2.5, -6, 2]],
+            [[-2.5, -5, 3], [-2.5, -6, 3]],
+            [[-0.95, -5, 2], [-0.95, -6, 2]],
+            [[-1.8, -5, 2], [-1.8, -6, 2]],
+            [[-1.8, -5, -1], [-1.8, -6, -1]],
+            [[-0.95, -5, -1], [-0.95, -6, -1]],
+        ],
+        [
+            [linePoint, vadd(linePoint, [lineDir[0] * 10, lineDir[1] * 10, lineDir[2] * 10])]
+        ]
+        ];
+        var sm;
+        function updatesize() {
+            sm = 800 * Math.pow(fovpower, fovpower);
+        }
+        updatesize();
+        sm = 200;
+        refp = [1.8364173215502402, 5.714365802786529, 2.8577039958607253];
+        var camPlaneDist = 3;
+        var eq = { a: 0.15665317280490823, b: 0.9399190368294494, c: 0.30333477818370225, d: -3.5255628091600864 }
+        var eq2;
+        var n = [eq.a, eq.b, eq.c];
+        var tn = normalize([-1, -1, 2]);
+        var rn = normalize([-1, 1, 0]);
+        var nn = normalize(n);
+        var hnn; //horizontal nn
+        xyang = v2ToAng(normalize2D([nn[0], nn[1]]));
+        xyang += Math.PI / 2;
+        var startnum;
+        if (xyang >= Math.PI * 2) { xyang -= Math.PI * 2 };
+        rn[0] = Math.cos(xyang);
+        rn[1] = Math.sin(xyang);
+        temprn = normalize2D([nn[0], nn[1]]);
+        xval = dist2D([0, 0], [nn[0], nn[1]]);
+        yval = nn[2];
+        tempang = v2ToAng([xval, yval]);
+        tempang += Math.PI / 2;
+        if (tempang >= Math.PI * 2) { tempang -= Math.PI * 2; }
+        tn[2] = Math.sin(tempang);
+        tn[0] = Math.cos(tempang) * temprn[0];
+        tn[1] = Math.cos(tempang) * temprn[1];
+        nnsign0 = (eq.a > 0);
+        nnsign1 = (eq.b > 0);
+        const planedist = p => (Math.abs(eq.a * p[0] + eq.b * p[1] + eq.c * p[2] + eq.d) / Math.sqrt(Math.pow(eq.a, 2) + Math.pow(eq.b, 2) + Math.pow(eq.c, 2)));
+        const project = (p, dist) => [p[0] + (nn[0] * dist), p[1] + (nn[1] * dist), p[2] + (nn[2] * dist)];
+        const secondplanedist = p => (Math.abs(eq2.a * p[0] + eq2.b * p[1] + eq2.c * p[2] + eq2.d) / Math.sqrt(Math.pow(eq2.a, 2) + Math.pow(eq2.b, 2) + Math.pow(eq2.c, 2)));
+        const secondproject = (p, dist) => [p[0] + (hnn[0] * dist), p[1] + (hnn[1] * dist), p[2] + (hnn[2] * dist)];
+        const thirdplanedist = p => (Math.abs(eq3.a * p[0] + eq3.b * p[1] + eq3.c * p[2] + eq3.d) / Math.sqrt(Math.pow(eq3.a, 2) + Math.pow(eq3.b, 2) + Math.pow(eq3.c, 2)));
+        const thirdproject = (p, dist) => [p[0] - (lineDir[0] * dist), p[1] - (lineDir[1] * dist), p[2] - (lineDir[2] * dist)];
+        var currdist;
+        var planepoint = vadd(refp, [-nn[0] * camPlaneDist, -nn[1] * camPlaneDist, -nn[2] * camPlaneDist]);
+        eq.d = -((eq.a * planepoint[0]) + (eq.b * planepoint[1]) + (eq.c * planepoint[2]));
+        temprn = normalize2D([nn[0], nn[1]]);
+        isFlipped = false;
+        var invalid;
+        function v2ToAng(v) {
+            ang = Math.asin(v[1]);
+            if (v[0] < 0) {
+                ang = Math.PI - ang;
+            }
+            if (ang < 0) {
+                ang += Math.PI * 2;
+            }
+            return ang;
+        }
+        function calcMuls(p) {
+            pd = planedist(p);
+            currdist = pd;
+            pp = project(p, pd);
+            if (planedist(pp) >= 0.001) {
+                invalid = true;
+                return;
+            }
+            invalid = false;
+            mp = [pp[0], pp[1], planepoint[2]];
+            //PROJECT BUT NN WILL BE [nn[0], nn[1], 0] REMOVING Z. WILL HAVE TO MAKE NEW EQ AND ALSO RECENTER THE NEW ONE ON REFP AFTER STRAIGHTENING
+            hnn = normalize([nn[0], nn[1], 0]);
+            eq2 = { a: hnn[0], b: hnn[1], c: hnn[2] };
+            eq2.d = -((eq2.a * planepoint[0]) + (eq2.b * planepoint[1]) + (eq2.c * planepoint[2]));
+            mpplanedist = secondplanedist(mp);
+            mpp = secondproject(mp, mpplanedist);
+            if (secondplanedist(mpp) >= 0.001) {
+                mpp = vadd(mp, [-hnn[0] * mpplanedist, -hnn[1] * mpplanedist, 0]);
+            }
+            amul = dist(mpp, planepoint);
+            dirv = normalize(vsub(mpp, planepoint));
+            if (dirv[0] > 0 != (rn[0] > 0) || ((dirv[1] > 0) != (rn[1] > 0))) {
+                amul = -amul;
+            }
+            bmul = vsub(pp, planepoint)[2] / tn[2];
+            bmul = -bmul;
+            if (isFlipped) amul = -amul;
+        }
+        function cycle() {
+            c.clearRect(0, 0, 1280, 720);
+            if ((nn[0] > 0) != nnsign0 || (nn[1] > 0) != nnsign1) {
+                isFlipped = true;
+            }
+            else isFlipped = false;
+            planepoint = vadd(refp, [-nn[0] * camPlaneDist, -nn[1] * camPlaneDist, -nn[2] * camPlaneDist]);
+            eq.d = -((eq.a * planepoint[0]) + (eq.b * planepoint[1]) + (eq.c * planepoint[2]));
+            for (ii = 0; ii < shapes.length; ii++) {
+                for (i = 0; i < shapes[ii].length; i++) {
+                    startnum = 1;
+                    shouldcontinue = true;
+                    calcMuls(shapes[ii][i][0]);
+                    if (invalid) {
+                        for (j = 1; j < shapes[ii][i].length; j++) {
+                            calcMuls(shapes[ii][i][1]);
+                            if (!invalid) {
+                                startnum = j;
+                                break;
+                            }
+                        }
+                        if (invalid) break;
+                    }
+                    c.beginPath();
+                    c.moveTo(640 + amul * sm / Math.pow(currdist, fovpower) + 100, 360 + bmul * sm / Math.pow(currdist, fovpower));
+                    //c.moveTo(256 + (amul * sm), 256 + (bmul * sm));
+                    for (j = startnum; j < shapes[ii][i].length; j++) {
+                        calcMuls(shapes[ii][i][j]);
+                        if (invalid) { continue; }
+                        c.lineTo(640 + amul * sm / Math.pow(currdist, fovpower) + 100, 360 + bmul * sm / Math.pow(currdist, fovpower));
+                        //c.lineTo(256 + (amul * sm), 256 + (bmul * sm));
+                        c.stroke();
+                    }
+                    calcMuls(shapes[ii][i][0]);
+                    c.lineTo(640 + amul * sm / Math.pow(currdist, fovpower) + 100, 360 + bmul * sm / Math.pow(currdist, fovpower));
+                    //c.lineTo(256 + (amul * sm), 256 + (bmul * sm));
+                    c.stroke();
+                }
+            }
+
+            for (i = 0; i < shapes[0].length; i++) {
+                for (j = 0; j < shapes[0][i].length; j++) {
+                    currang = v2ToAng([(shapes[0][i][j][0] - 0.5) / (Math.SQRT2 / 2), (shapes[0][i][j][1] - 0.5) / (Math.SQRT2 / 2)]);
+                    currang = currang + 0.03;
+                    shapes[0][i][j][0] = Math.cos(currang) * (Math.SQRT2 / 2) + 0.5;
+                    shapes[0][i][j][1] = Math.sin(currang) * (Math.SQRT2 / 2) + 0.5;
+                }
+            }
+            for (i = 0; i < shapes[1].length; i++) {
+                for (j = 0; j < shapes[1][i].length; j++) {
+                    currang = v2ToAng([(shapes[1][i][j][0] - 2.5) / (Math.SQRT2 / 2), (shapes[1][i][j][1] - 0.5) / (Math.SQRT2 / 2)]);
+                    currang = currang + 0.03;
+                    shapes[1][i][j][0] = Math.cos(currang) * (Math.SQRT2 / 2) + 2.5;
+                    shapes[1][i][j][1] = Math.sin(currang) * (Math.SQRT2 / 2) + 0.5;
+                }
+            }
+        }
+        //cycle();
+        var mainCycle = setInterval(cycle, 20);
+        var keyInterval;
+        var currKey = -69;
+        function realKeyMan(evt) {
+            if (evt.keyCode != currKey) {
+                clearInterval(keyInterval);
+                currKey = evt.keyCode;
+                keyInterval = setInterval(function () { keyMan(currKey); }, 20);
+            }
+        }
+        function keyMan(evt) {
+            kCode = evt;
+            if (isFlipped) {
+                if (kCode == 65) { kCode = 68; }
+                else if (kCode == 68) { kCode = 65; }
+            }
+            switch (kCode) {
+                case 65: //left
+                    refp = vsub(refp, [rn[0] * moveSpeed, rn[1] * moveSpeed, 0]);
+                    break;
+                case 68: //right
+                    refp = vadd(refp, [rn[0] * moveSpeed, rn[1] * moveSpeed, 0]);
+                    break;
+                case 87: //forward
+                    refp = vsub(refp, [nn[0] * moveSpeed, nn[1] * moveSpeed, nn[2] * moveSpeed]);
+                    break;
+                case 83: //backward
+                    refp = vadd(refp, [nn[0] * moveSpeed, nn[1] * moveSpeed, nn[2] * moveSpeed]);
+                    break;
+                case 81: //down
+                    refp = vsub(refp, [tn[0] * moveSpeed, tn[1] * moveSpeed, tn[2] * moveSpeed]);
+                    break;
+                case 69: //up
+                    refp = vadd(refp, [tn[0] * moveSpeed, tn[1] * moveSpeed, tn[2] * moveSpeed]);
+                    break;
+                default:
+                    rotCam(kCode);
+                    break;
+
+            }
+        }
+        function recal() {
+            nn = [eq.a, eq.b, eq.c];
+            xyang = v2ToAng(normalize2D([nn[0], nn[1]]));
+            xyang += Math.PI / 2;
+            if (xyang >= Math.PI * 2) { xyang -= Math.PI * 2 };
+            rn[0] = Math.cos(xyang);
+            rn[1] = Math.sin(xyang);
+            xval = dist2D([0, 0], [nn[0], nn[1]]);
+            if ((nn[0] > 0) != nnsign0 || (nn[1] > 0) != nnsign1) {
+                xval = -xval;
+            }
+            yval = nn[2];
+            tempang = v2ToAng([xval, yval]);
+            tempang += Math.PI / 2;
+            if (tempang >= Math.PI * 2) { tempang -= Math.PI * 2; }
+            tn[2] = Math.sin(tempang);
+            tn[0] = Math.cos(tempang) * temprn[0];
+            tn[1] = Math.cos(tempang) * temprn[1];
+        }
+        function rotCam(code) {
+            yortvdist = dist2D([0, 0], [eq.a, eq.b]);
+            yrotv = normalize2D([eq.a, eq.b]);
+            xrotv = normalize2D([eq.a, eq.c]);
+            if (isFlipped) {
+                if (code == 37) { code = 39; }
+                else if (code == 39) { code = 37; }
+            }
+            switch (code) {
+                case 37: //left
+                    currroty = v2ToAng(yrotv);
+                    yrotv = [Math.cos(currroty + rotadd) * yortvdist, Math.sin(currroty + rotadd) * yortvdist];
+                    eq.a = yrotv[0];
+                    eq.b = yrotv[1];
+                    nnsign0 = (eq.a > 0);
+                    nnsign1 = (eq.b > 0);
+                    if (isFlipped) { nnsign0 = !nnsign0; nnsign1 = !nnsign1; }
+                    if (!isFlipped) temprn = normalize2D([eq.a, eq.b]);
+                    else temprn = normalize2D([-eq.a, -eq.b]);
+                    recal();
+
+                    break;
+                case 39: //right
+                    currroty = v2ToAng(yrotv);
+                    yrotv = [Math.cos(currroty - rotadd) * yortvdist, Math.sin(currroty - rotadd) * yortvdist];
+                    eq.a = yrotv[0];
+                    eq.b = yrotv[1];
+                    nnsign0 = (eq.a > 0);
+                    nnsign1 = (eq.b > 0);
+                    if (isFlipped) { nnsign0 = !nnsign0; nnsign1 = !nnsign1; }
+                    if (!isFlipped) temprn = normalize2D([eq.a, eq.b]);
+                    else temprn = normalize2D([-eq.a, -eq.b]);
+                    recal();
+                    break;
+                case 38: //up
+                    xval = dist2D([0, 0], [nn[0], nn[1]]);
+                    if (isFlipped) {
+                        xval = -xval;
+                    }
+                    yval = nn[2];
+                    tempang = v2ToAng([xval, yval]);
+                    tempang -= rotadd;
+                    if (tempang >= Math.PI * 2) { tempang -= Math.PI * 2; }
+                    nn[2] = Math.sin(tempang);
+                    nn[0] = Math.cos(tempang) * temprn[0];
+                    nn[1] = Math.cos(tempang) * temprn[1];
+                    eq.a = nn[0];
+                    eq.b = nn[1];
+                    eq.c = nn[2];
+                    recal();
+                    break;
+                case 40: //down
+                    xval = dist2D([0, 0], [nn[0], nn[1]]);
+                    if (isFlipped) {
+                        xval = -xval;
+                    }
+                    yval = nn[2];
+                    tempang = v2ToAng([xval, yval]);
+                    tempang += rotadd;
+                    if (tempang >= Math.PI * 2) { tempang -= Math.PI * 2; }
+                    nn[2] = Math.sin(tempang);
+                    nn[0] = Math.cos(tempang) * temprn[0];
+                    nn[1] = Math.cos(tempang) * temprn[1];
+                    eq.a = nn[0];
+                    eq.b = nn[1];
+                    eq.c = nn[2];
+                    recal();
+                    break;
+            }
+        }
+        const getY = p => (p[2] - centerP[2]) / weirdTn[2];
+        const getX = p => ((p[0] - (getY(p) * weirdTn[0])) - centerP[0]) / weirdRn[0];
+        function rotObj() {
+            for (i = 0; i < shapes[2].length; i++) {
+                for (j = 0; j < shapes[2][i].length; j++) {
+                    eq3.d = -((eq3.a * shapes[2][i][j][0]) + (eq3.b * shapes[2][i][j][1]) + (eq3.c * shapes[2][i][j][2]));
+                    centerP = thirdproject(linePoint, thirdplanedist(linePoint));
+                    if (thirdplanedist(centerP) > 0.001) {
+                        tempdist = thirdplanedist(centerP);
+                        centerP = vadd(centerP, [lineDir[0] * tempdist, lineDir[1] * tempdist, lineDir[2] * tempdist]);
+                    }
+                    currcos = getX(shapes[2][i][j]);
+                    currsin = getY(shapes[2][i][j]);
+                    rememberDist = dist(shapes[2][i][j], centerP);
+                    angvec = normalize2D([currcos, currsin]);
+                    the_ang = v2ToAng(angvec);
+                    the_ang += 0.04;
+                    the_ang = angbounder(the_ang);
+                    shapes[2][i][j] = vadd(centerP, vadd([weirdRn[0] * Math.cos(the_ang) * rememberDist, weirdRn[1] * Math.cos(the_ang) * rememberDist, weirdRn[2] * Math.cos(the_ang) * rememberDist], [weirdTn[0] * Math.sin(the_ang) * rememberDist, weirdTn[1] * Math.sin(the_ang) * rememberDist, weirdTn[2] * Math.sin(the_ang) * rememberDist]));
+                }
+            }
+        }
+        //setInterval(function () { addShape([(Math.random() * 30) - 15 + planepoint[0], (Math.random() * 30) - 15 + planepoint[1], (Math.random() * 30) - 15 + planepoint[2]]) }, 500);
+        setInterval(rotObj, 20);
+    </script>
+</body>
+
+</html>
